@@ -8,3 +8,5 @@ paraph/t_bbe.csv
 dist/paraphrasing-1.0.0-py3.6.egg
 paraph/t_ylt.csv
 .idea/modules.xml
+.idea/workspace.xml
+paraph/t_wbt.csv

@@ -174,20 +174,23 @@ def build_models(train_dataset, opt):
                      update_embedding=False))  # let only encoder do this
 
     decoder = DecoderRNN(len(TEXT.vocab), opt.max_sent_len,
-                         (1 if encoder_bidi else 1) * (opt.semantics_dim + opt.style_dim), sos_id=TEXT_TARGET.sos_id,
+                         opt.semantics_dim + opt.style_dim,
+                         sos_id=TEXT_TARGET.sos_id,
                          eos_id=TEXT_TARGET.eos_id,
                          bidirectional=decoder_bidi, n_layers=decoder_layers,
                          input_dropout_p=0.1, dropout_p=0.0, rnn_cell='gru')
 
 
 
-    adv_disc = nn.Sequential(
+    '''
+    weak_adv_disc = nn.Sequential(
         # input concat of two style
         nn.Linear(2 * opt.style_dim, 1),
         nn.Sigmoid()  # depends on what we have as loss #Must be sigmoid, we apply later BCE
     )
+    '''
 
-    strong_adv_disc = nn.Sequential(
+    adv_disc = nn.Sequential(
         # input concat of two style
         nn.Linear(2 * opt.style_dim, 30),
         nn.PReLU(),
@@ -202,7 +205,7 @@ def build_models(train_dataset, opt):
     decoder = T(decoder)
     adv_disc = T(adv_disc)
 
-    return  Models(en_sem,en_sty,decoder,adv_disc)
+    return Models(en_sem,en_sty,decoder,adv_disc)
 
 
 def test():
@@ -214,9 +217,8 @@ def test():
     sample = next(iter(bucket_iter_train))
     merge_dim = 1
     en_sem, en_sty, decoder, adv_disc = build_models(bucket_iter_train.dataset, get_options())
-    print(type(sample.sent_0))
     in_var, in_len = sample.sent_0
-    print(in_var.shape, in_len.shape)  # torch.Size([32, 56 or 66]) torch.Size([32])
+    #print(in_var.shape, in_len.shape)  # torch.Size([32, 56 or 66]) torch.Size([32])
 
     # print ('length0',sample.sent_0[1])
     # print ('length1',sample.sent_1[1])
@@ -225,13 +227,10 @@ def test():
     sty_out = T(en_sty(sample.sent_1))
     #print('sty_out', sty_out.shape, 'concat', T(torch.cat([sty_out, sty_out], dim=merge_dim)).shape)
 
-    merged = T(torch.cat([sty_out, sty_out], dim=merge_dim))
-    #print('merged1', merged.type(), merged.shape)
-    disc_out = T(adv_disc(merged))
-    #print(disc_out.shape)
-
     merged = T(torch.cat([sem_out, sty_out], dim=merge_dim))
+    disc_out = T(adv_disc(merged))
     merged.unsqueeze_(0)
+
     #print('merged2', merged.shape)
     decoder_outputs, _, _ = decoder(inputs=None,  # pass not None for teacher focring  (batch, seq_len, input_size)
                                     encoder_hidden=merged,  # (num_layers * num_directions, batch_size, hidden_size)
@@ -241,7 +240,5 @@ def test():
     decoder_outputs = decoder_outputs
     # **decoder_outputs** (seq_len, batch, vocab_size): list of tensors with size (batch_size, vocab_size) containing
     #          the outputs of the decoding function.
-    print('decoder_outputs', len(decoder_outputs), decoder_outputs[0].shape)
+    #print('decoder_outputs', len(decoder_outputs), decoder_outputs[0].shape)
 
-
-test()

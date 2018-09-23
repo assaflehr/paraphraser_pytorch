@@ -40,7 +40,7 @@ def train_main(opt):
 
 
     # --------- training funtions ------------------------------------
-    def train(b, models, epoch=0):
+    def train(b, models, dont_optimize=False):
         # x[0] semantic0   , style0
         # x[1] semantic0   , style1
         # x[2] semantic0orX, style0 (1/2 the time 0 , half X)
@@ -130,17 +130,15 @@ def train_main(opt):
         loss = rec_loss + sim_loss * opt.sem_sim_weight + opt.sd_weight * adv_disc_loss  # rec_loss + sim_loss + opt.sd_weight*adv_disc_loss
         loss.backward()
 
-        optimizer_en_sem.step()
-        optimizer_en_sty.step()
-        optimizer_decoder.step()
-
-        if opt.optimizer == 'adampre':
-            optimizer_adv_disc.restoreStepLookAhead()
+        if not dont_optimize:
+            optimizer_en_sem.step()
+            optimizer_en_sty.step()
+            optimizer_decoder.step()
 
         return N(sim_loss.data) * opt.sem_sim_weight, (rec_loss.data), N(adv_disc_loss.data) * opt.sd_weight  # N
 
 
-    def train_scene_discriminator(b,models):
+    def train_scene_discriminator(b,models,dont_optimize=False):
 
 
         sent0 = T(b.sent_0)
@@ -169,7 +167,9 @@ def train_main(opt):
 
 
         bce.backward()
-        optimizer_adv_disc.step()
+
+        if not dont_optimize:
+            optimizer_adv_disc.step()
 
 
 
@@ -183,14 +183,14 @@ def train_main(opt):
         return N(bce.data), N(acc)
 
 
-    def one_epoc(epoch,bucket_iter_train,models):
+    def one_epoc(epoch,bucket_iter_train,models,dont_optimize=False):
         logger.info('one_epoc starts')
 
 
         epoch_sim_loss, epoch_rec_loss, epoch_anti_disc_loss, epoch_sd_loss, epoch_sd_acc = 0, 0, 0, 0, 0
 
         training_batch_generator= None
-        for i in range(opt.epoch_size):
+        for i in range(opt.epoch_size if not dont_optimize else opt.epoch_size/10):
             # if i % 10==0 : print ('batch',i,'of',opt.epoch_size)
             logger.debug('next batch')
             b = None
@@ -240,7 +240,7 @@ def train_main(opt):
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG, datefmt='%I:%M:%S')
     logger.setLevel(logging.INFO)  # not DEBUG
 
-
+    print ('running train with options:',opt)
     bucket_iter_train, _ = build_bible_datasets(verbose=False)
     models = build_models(bucket_iter_train.dataset, opt)
 
@@ -266,7 +266,7 @@ def train_main(opt):
         optimizer_adv_disc = torch.optim.SGD(models.adv_disc.parameters(), opt.adv_disc_lr)
 
         eval_sample(bucket_iter_train,models)
-        for epoch in range(0, 100):
+        for epoch in range(0, opt.epocs):
             one_epoc(epoc_count,bucket_iter_train,models)
             epoc_count += 1
 
