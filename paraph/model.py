@@ -7,6 +7,8 @@ from collections import namedtuple
 import torch
 from util import T,N
 
+
+#code taken from seq2seq library, with minor modifications
 class BaseRNN(nn.Module):
     r"""
     Applies a multi-layer RNN to an input sequence.
@@ -131,13 +133,9 @@ class EncoderWrapper(nn.Module):
         # in_data,in_len = in_tuple
         output, hidden = self.encoder(*inp)  # in_data,in_len)
         # **output** (batch, seq_len, hidden_size): tensor containing the encoded features of the input sequence
-        # **hidden** (num_layers * num_directions, batch, hidden_size): tensor containing the features in the hidden state `h`
-        # return hidden[0,:,:]
-        # return hidden[:,:,:].# view(1,hidden.size(1),-1)[0,:,:] #BUG BUG BUG O: check dim order, 2xbsxdim -> 1xbsxdim*2 ??
-
-        # in lstm hidden is a tuple
+        # **hidden** (num_layers * num_directions, batch, hidden_size):
+        #print("forward shape", hidden.shape, torch.sum(hidden, dim=0).shape)  # 2(bidi)x32batch)x256 -> 32x256
         return torch.sum(hidden, dim=0)
-        # TODO : BUG HERE
 
 
 Models =  namedtuple("Models",["en_sem","en_sty","decoder","adv_disc"])
@@ -150,7 +148,7 @@ def build_models(train_dataset, opt):
     #hardcoded, can't be changed in opt, as will break model
     variable_lengths = False  # True means batch is ordered. this can't be done as sent0.len!=sent1.len, to make it happen need to seperate batches!!!
     encoder_bidi = True
-    decoder_bidi = True  # not supported True
+    decoder_bidi = True
     encoder_layers = 1  # not supported>1
     decoder_layers = 1
 
@@ -180,7 +178,6 @@ def build_models(train_dataset, opt):
                          eos_id=TEXT_TARGET.eos_id,
                          bidirectional=decoder_bidi, n_layers=decoder_layers,
                          input_dropout_p=0.1, dropout_p=0.0, rnn_cell='gru')
-    # note here embedding are learnt (Which can be a waste too...)
 
 
 
@@ -245,3 +242,6 @@ def test():
     # **decoder_outputs** (seq_len, batch, vocab_size): list of tensors with size (batch_size, vocab_size) containing
     #          the outputs of the decoding function.
     print('decoder_outputs', len(decoder_outputs), decoder_outputs[0].shape)
+
+
+test()

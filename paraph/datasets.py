@@ -304,10 +304,8 @@ def build_bible_datasets(verbose=False):
                        tokenize=tokenize)  # , fix_length=20)
     LABEL = data.Field(batch_first=True, sequential=False, use_vocab=False, tensor_type=torch.FloatTensor)
 
-    train_till = 200  # //28000
-    val_from = 31037 - 64  # //31037
-    bible_style_ds_trn = BibleStyleDS(bibles[:train_till], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
-    bible_style_ds_val = BibleStyleDS(bibles[val_from:], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
+    bible_style_ds_trn = BibleStyleDS([x for (i,x) in enumerate(bibles) if i%10 != 9], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
+    bible_style_ds_val = BibleStyleDS([x for (i,x) in enumerate(bibles) if i%10 == 9], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
     if verbose:
         for i in range(2):
             print("RAW SENTENCES", bible_style_ds_val[i])
@@ -328,6 +326,7 @@ def build_bible_datasets(verbose=False):
     TEXT_TARGET.build_vocab(ds_train, vectors='fasttext.simple.300d',
                             min_freq=20)  # , max_size=80000)#,vectors='fasttext.simple.300d')  #vectors=,'fasttext.simple.300d' not-simple 'fasttext.en.300d' ,'glove.twitter.27B.50d': '
     TEXT.vocab = TEXT_TARGET.vocab  # same except from the added <sos>,<eos>
+    print ('total',len(TEXT.vocab),'after ignoring non-frequent')
     if verbose:
         print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:30])
         print('vocab TEXT: len', len(TEXT.vocab), 'uncommon', TEXT.vocab.freqs.most_common()[-30:])
@@ -338,18 +337,19 @@ def build_bible_datasets(verbose=False):
 
     device = torch.device('cuda') if torch.cuda.is_available() else -1
     # READ:  https://github.com/mjc92/TorchTextTutorial/blob/master/01.%20Getting%20started.ipynb
-    print('device is:', device)
+    print('device is cuda or -1 for cpu:', device)
+
     bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
                                             sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
-    print('$' * 40, 'change batch_size to 32')
-    training_batch_generator = iter(bucket_iter_train)
-
-    # performance note: the first next, takes 3.5s, the next are fast (10000 is 1s)
+    bucket_iter_valid = data.BucketIterator(dataset=ds_val, shuffle=True, device=device, batch_size=32,
+                                            sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
 
 
-    if verbose:
+
+    if verbose: #show few samples
         for i in range(1):
-            b = next(training_batch_generator)
+            # performance note: the first next, takes 3.5s, the next are fast (10000 is 1s)
+            b = next(iter(bucket_iter_train))
             # usage
             print('\nb.is_x_0', b.is_x_0[0], b.is_x_0.type())
             # print ('b.src is values+len tuple',b.src[0].shape,b.src[1].shape )
@@ -360,11 +360,7 @@ def build_bible_datasets(verbose=False):
             print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '))
             print('b_y', b.is_x_0.shape, b.is_x_0[0])
 
-    #return ds_train, ds_val
-    bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
-                                            sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
-    bucket_iter_valid = data.BucketIterator(dataset=ds_val, shuffle=True, device=device, batch_size=32,
-                                            sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
+
     return bucket_iter_train, bucket_iter_valid
 
 

@@ -4,3 +4,7 @@
 paraph/.vector_cache/wiki.simple.vec.pt
 *.pyc
 paraph/t_bbe.csv
+.idea/paraphraser_pytorch.iml
+dist/paraphrasing-1.0.0-py3.6.egg
+paraph/t_ylt.csv
+.idea/modules.xml
