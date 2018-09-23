@@ -3,3 +3,4 @@
 *.vec
 paraph/.vector_cache/wiki.simple.vec.pt
 *.pyc
+paraph/t_bbe.csv
