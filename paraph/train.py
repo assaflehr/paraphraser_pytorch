@@ -1,15 +1,16 @@
 import time
 import numpy as np
+import numpy.random as random
 import logging
-import time
 import torch
 import torch.nn.functional as F
+from torch.optim.optimizer import Optimizer
+
 from util import T,N
 from model import build_models
 from datasets import build_bible_datasets
 from options import get_options
-import numpy.random as random
-
+from eval import eval_sample
 
 
 
@@ -34,7 +35,7 @@ class ContrastiveLoss(torch.nn.Module):
 
 def train_main(opt):
     contrastiveLoss = T(ContrastiveLoss())
-    nll = T(torch.nn.NLLLoss())
+    nllloss_for_recon = T(torch.nn.NLLLoss(ignore_index=1)) #ignore padding
     bce = T(torch.nn.BCELoss())
     bce2 = T(torch.nn.BCELoss())
 
@@ -49,16 +50,10 @@ def train_main(opt):
         models.en_sem.zero_grad()
         models.decoder.zero_grad()
 
-        # sent0 = b.sent_0 #sem A , style A
-        # sent1 = b.sent_1 #sem A, style B
-        # sentX = b.sent_x #semAorC , style A
+        h_sem0 = models.en_sem(b.sent_0)  # sent0 = b.sent_0 #sem A , style A
+        h_sem1 = models.en_sem(b.sent_1)  # sent1 = b.sent_1 #sem A, style B
+        h_semX = models.en_sem(b.sent_x)  # sentX = b.sent_x #semAorC , style A
         recon_target = b.sent_0_target  # one-hot
-
-        # logger.debug(f'sent_0 {b.sent_0[0].shape} {b.sent_0[1].shape}')
-
-        h_sem0 = models.en_sem(b.sent_0)
-        h_sem1 = models.en_sem(b.sent_1)
-        h_semX = models.en_sem(b.sent_x)
 
         ######### SIM LOSS #########
         # Original was MSE
@@ -75,43 +70,55 @@ def train_main(opt):
         #  logger.debug(f'###########sim_loss: CURRENTLY USING sem1 . sem1 == more sim loss')
 
 
-        ######### RECONSTRUCTION LOSS #########
+        ######### RECONSTRUCTION LOSS ######### note: quite slow
         # reconstruct sent0 from semantics of sent1 (==sem of sent0, different style), and style of sent0.
         h_sty0 = models.en_sty(b.sent_0)
-        # This is slow: 25 seconds(!!!!) for the RECONSTRCUTION LOSS CALC. ALL OTHER 15s
         merged = torch.cat([h_sem1, h_sty0], dim=merge_dim)
         merged.unsqueeze_(0)  # 32x25 -> 1x32x25 . 1 is for one hidden-layer (not-stacked)
-        # logger.debug(f'h_sem1.h_sty0 {h_sem1.shape} {h_sty0.shape,merged.shape}')
-
-
         recon_sent0, _, _ = models.decoder(inputs=recon_target,  # pass not None for teacher focring  (batch, seq_len, input_size)
                                     encoder_hidden=merged,  # (num_layers * num_directions, batch_size, hidden_size)
                                     encoder_outputs=None,  # pass not None for attention
-                                    teacher_forcing_ratio=1
+                                    teacher_forcing_ratio=1,
+                                    function = F.log_softmax
                                     # in(0, 1-random.random()* epoch * 0.1) #range 0..1 , must pass inputs if >0. as epochs increase, it's lower
                                     )
-        # print('$'*10,'recon_sent0 length',len(recon_sent0),'each',recon_sent0[0].shape)
-        # rec_loss = nn.MSELoss()(recon_sent0,sent0)
         # see impl https://github.com/IBM/pytorch-seq2seq/blob/master/seq2seq/loss/loss.py
-        acc_loss, norm_term = 0, 0
-        # logger.debug(f'recon_target {recon_target.shape} while decoder outputs {len(recon_sent0)}')
-        # target shape [32, 26]  batch x words , actual len of 50
-        for step, step_output in enumerate(recon_sent0):
-            batch_size = recon_target.size(0)
-            # print('step_output at step ',step,step_output.shape,type(step_output))
-            outputs = step_output  # step_output.contiguous().view(batch_size, -1)
+        # good reconstruction-loss need to:
+        # ignore padding (it is easy to guess always <pad> as a result and to be usually right.also called masking)
+        # consider length of sentences. is a short 5 word sentnece weight the same as long 40 words sentence?
+        #   'elementwise_mean' means look at each word by itself. one can change this to be on sentence level
 
-            # what to do if output is too-long? decision here is to match only relevant parts
-            if step + 1 >= recon_target.size(1):
+
+        '''logger.info(f'recon_target {recon_target.shape}')
+        logger.info(recon_target[0])
+
+        logger.info(f'recon_sent0 {len(recon_sent0)}')
+        for step, step_output in enumerate(recon_sent0):
+            logger.info(step_output.shape)
+        recon_sent0 = torch.stack(recon_sent0, dim=1)
+        logger.info(f'recon_sent0 {recon_sent0.shape}')
+        logger.info(recon_sent0[0])
+        '''
+        # target shape [32, 26]  batch x words , actual len of 50
+
+        acc_loss, norm_term = 0, 0
+        for step, timestamp_output in enumerate(recon_sent0):#list of 65 x [32, 2071]
+            batch_size = recon_target.size(0)
+            if step + 1 >= recon_target.size(1): #in beginning, model might output 200 steps, later will converge to target
                 # print ('breaking!!! at step',step)
                 break
-            gold = recon_target[:, step + 1]  # tuple [0] is data. [1] is len
-            # print('output at step ',step,outputs.shape,type(outputs),'gold',gold.shape,type(gold))
-            curr_loss = nll(outputs, gold)
-            # logger.debug(f'loss for token {norm_term},{outputs.shape}, {gold.shape}, {curr_loss}')
+            gold = recon_target[:, step + 1]  # this is one timstamp across batches
+            curr_loss = nllloss_for_recon(timestamp_output, gold)
+
             acc_loss += curr_loss
             norm_term += 1
         rec_loss = acc_loss / norm_term
+        logger.info(rec_loss)
+
+        #recon_sent0 = torch.stack(recon_sent0, dim=2) #32x2070x66 (as nll requires NxCxother_d
+        #logger.info(recon_sent0.shape)
+        #rec_loss = nllloss_for_recon(recon_sent0, recon_target)
+        #logger.info(rec_loss)
 
         ######### ADV LOSS #########  TODO : willl it be better to use completely different sentences?
         h_sty1 = models.en_sty(b.sent_1)
@@ -138,7 +145,7 @@ def train_main(opt):
         return N(sim_loss.data) * opt.sem_sim_weight, (rec_loss.data), N(adv_disc_loss.data) * opt.sd_weight  # N
 
 
-    def train_scene_discriminator(b,models,dont_optimize=False):
+    def train_scene_discriminator(b,models,dont_optimize):
 
 
         sent0 = T(b.sent_0)
@@ -160,12 +167,7 @@ def train_main(opt):
 
         # TODO: #Note BCELossWithLogits is faster and more stable, to use it remove sigmoid from network end
         logger.debug(f'out {out.shape} y {y.shape}')
-
-        # bce = nn.BCELoss()(out.flatten(), y.flatten()) #should wrapp in varaible?
-        bce = bce2(out, y)  # should wrapp in varaible?
-        # logger.debug('train_scene_discriminator {out} {y}')
-
-
+        bce = bce2(out, y)
 
 
         if not dont_optimize:
@@ -184,7 +186,7 @@ def train_main(opt):
         return N(bce.data), N(acc)
 
 
-    def one_epoc(epoch,bucket_iter_train,models,dont_optimize=False):
+    def one_epoc(epoch,bucket_iter_train,models,dont_optimize):
         logger.debug('one_epoc starts')
 
 
@@ -202,16 +204,15 @@ def train_main(opt):
                 training_batch_generator = iter(bucket_iter_train)  # only if no choice... it's 1.5 min
                 b = next(training_batch_generator)
 
-            logger.debug('next batch is out')
+
 
             # train scene discriminator
             logger.debug(f'b_sent_0 {b.sent_0[0].shape}{b.sent_0[1].shape}')  # TEXT.reverse(b.sent_0))
 
             # %time train_scene_discriminator(b) #50ms
-            sd_loss, sd_acc = train_scene_discriminator(b,models)
+            sd_loss, sd_acc = train_scene_discriminator(b,models,dont_optimize)
+            logger.debug('train_scene_discriminator done')
 
-            logger.debug('train_scene_discriminator done')
-            logger.debug('train_scene_discriminator done')
             epoch_sd_loss += sd_loss
             epoch_sd_acc += sd_acc
 
@@ -244,8 +245,7 @@ def train_main(opt):
 
 
     # --------- training loop ------------------------------------
-    from eval import eval_sample
-    from torch.optim.optimizer import Optimizer
+
 
 
 
@@ -274,7 +274,7 @@ def train_main(opt):
         eval_sample(bucket_iter_train,models)
         for epoch in range(0, opt.epocs):
             set_train(models)
-            one_epoc(epoc_count,bucket_iter_train, models)
+            one_epoc(epoc_count,bucket_iter_train, models,dont_optimize=False)
             set_eval(models)
             one_epoc(epoc_count, bucket_iter_val,  models,dont_optimize=True)
             one_epoc(epoc_count, bucket_iter_val,  models, dont_optimize=True) #to verify nothing changged

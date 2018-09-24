@@ -13,7 +13,7 @@ from util import revers_vocab
 
 
 # on sample of the dataset
-TimeExample = namedtuple('TimeExample',['sent_0','sent_1','sent_x','is_x_0','sent_0_target']) #'src' is out
+OneSample = namedtuple('TimeExample', ['sent_0', 'sent_1', 'sent_x', 'is_x_0', 'sent_0_target']) #'src' is out
 
 
 
@@ -68,7 +68,7 @@ class TimeStyleDataset(Dataset):
             y[y == 1.0] = (0.7 + 0.5 * np.random.rand())
             y[y == 0.0] = (0.3 * np.random.rand())
 
-        return TimeExample(sent_0, sent_1, sent_x, y, sent_0)
+        return OneSample(sent_0, sent_1, sent_x, y, sent_0)
 
 
 def test():
@@ -207,8 +207,8 @@ class SemStyleDS(Dataset):
             y[y == 1.0] = (0.7 + 0.5 * np.random.rand())
             y[y == 0.0] = (0.3 * np.random.rand())
 
-        return TimeExample(self.TEXT.preprocess(sent_0), self.TEXT.preprocess(sent_1), self.TEXT.preprocess(sent_x),
-                           self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
+        return OneSample(self.TEXT.preprocess(sent_0), self.TEXT.preprocess(sent_1), self.TEXT.preprocess(sent_x),
+                         self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
 
 
 class BibleStyleDS(Dataset):
@@ -254,8 +254,8 @@ class BibleStyleDS(Dataset):
             else:
                 y = (0.3 * np.random.rand())
 
-        return TimeExample(self.TEXT.preprocess(sent_0), self.TEXT.preprocess(sent_1), self.TEXT.preprocess(sent_x),
-                           self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
+        return OneSample(self.TEXT.preprocess(sent_0), self.TEXT.preprocess(sent_1), self.TEXT.preprocess(sent_x),
+                         self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
 
 
 import csv
@@ -263,14 +263,12 @@ import csv
 
 def build_bible_datasets(verbose=False):
     """
-
     :return: bucket_iter_train, bucket_iter_valid
      To get an epoch-iterator , do iter= iter(bucket_iter_train). and then loop on next(iter)
      It easy to get dataset/fields from it , using bucket_iter_train.dataset.fields
-
     """
 
-    def as_dict(filename):
+    def as_id_to_sentence(filename):
         d = {}
         with open(filename, 'r') as f:
             f.readline()
@@ -279,8 +277,8 @@ def build_bible_datasets(verbose=False):
                 d[l[0]] = l[4]
         return d
 
-    bbe = as_dict('t_bbe.csv')
-    wbt = as_dict('t_wbt.csv')
+    bbe = as_id_to_sentence('t_bbe.csv')
+    wbt = as_id_to_sentence('t_wbt.csv')
     print('num of sentences',len(bbe), len(wbt))
 
     # merge into a list with (s1,s2) tuple
@@ -328,13 +326,13 @@ def build_bible_datasets(verbose=False):
     TEXT.vocab = TEXT_TARGET.vocab  # same except from the added <sos>,<eos>
     print ('total',len(TEXT.vocab),'after ignoring non-frequent')
     if verbose:
-        print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:30])
-        print('vocab TEXT: len', len(TEXT.vocab), 'uncommon', TEXT.vocab.freqs.most_common()[-30:])
-        print('vocab TEXT_TARGET:', len(TEXT_TARGET.vocab), TEXT_TARGET.vocab.freqs.most_common()[:30])
+        print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:5])
+        print('vocab TEXT: len', len(TEXT.vocab), 'uncommon', TEXT.vocab.freqs.most_common()[-5:])
+        print('vocab TEXT_TARGET:', len(TEXT_TARGET.vocab), TEXT_TARGET.vocab.freqs.most_common()[:5])
         print('vocab ', TEXT_TARGET.SYM_SOS, TEXT_TARGET.sos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_SOS])
         print('vocab ', TEXT_TARGET.SYM_EOS, TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_EOS])
-        print('vocab ', 'out-of-vocab', TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi['out-of-vocab'])
-
+        print('vocab ', 'out-of-vocab',  TEXT_TARGET.vocab.stoi['out-of-vocab'])
+        print('vocab ', 'i0', [ (i,TEXT_TARGET.vocab.itos[i]) for i in range(6)] )
     device = torch.device('cuda') if torch.cuda.is_available() else -1
     # READ:  https://github.com/mjc92/TorchTextTutorial/blob/master/01.%20Getting%20started.ipynb
     print('device is cuda or -1 for cpu:', device)
@@ -357,7 +355,7 @@ def build_bible_datasets(verbose=False):
             print('b.sent_0_target', revers_vocab(TEXT_TARGET.vocab, b.sent_0_target[0], ' '))
             print('b_sent0', b.sent_0[0].shape, b.sent_0[1].shape, revers_vocab(TEXT.vocab, b.sent_0[0][0], ' '))
             print('b_sent1', b.sent_1[0].shape, b.sent_1[1].shape, revers_vocab(TEXT.vocab, b.sent_1[0][0], ' '))
-            print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '))
+            print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '), b.sent_x[0][0])
             print('b_y', b.is_x_0.shape, b.is_x_0[0])
 
 
@@ -366,8 +364,8 @@ def build_bible_datasets(verbose=False):
 
 def test() :
     #ds_train, ds_eval, train_iter, eval_iter = build_time_ds()
-    bucket_iter_train, bucket_iter_valid = build_bible_datasets()
-    print (bucket_iter_train.dataset.fields.keys())
+    bucket_iter_train, bucket_iter_valid = build_bible_datasets(verbose=True)
+
 
 #test()
 
