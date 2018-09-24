@@ -241,7 +241,7 @@ def train_main(opt):
     logger.setLevel(logging.INFO)  # not DEBUG
 
     print ('running train with options:',opt)
-    bucket_iter_train, _ = build_bible_datasets(verbose=False)
+    bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
     models = build_models(bucket_iter_train.dataset, opt)
 
     if opt.optimizer == 'adam':
@@ -267,7 +267,9 @@ def train_main(opt):
 
         eval_sample(bucket_iter_train,models)
         for epoch in range(0, opt.epocs):
-            one_epoc(epoc_count,bucket_iter_train,models)
+            one_epoc(epoc_count,bucket_iter_train, models)
+            one_epoc(epoc_count, bucket_iter_val,  models,dont_optimize=True)
+            one_epoc(epoc_count, bucket_iter_val,  models, dont_optimize=True) #to verify nothing changged
             epoc_count += 1
 
     print('training loop done')

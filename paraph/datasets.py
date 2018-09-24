@@ -341,7 +341,7 @@ def build_bible_datasets(verbose=False):
 
     bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
                                             sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
-    bucket_iter_valid = data.BucketIterator(dataset=ds_val, shuffle=True, device=device, batch_size=32,
+    bucket_iter_valid = data.BucketIterator(dataset=ds_val, shuffle=False, device=device, batch_size=32,
                                             sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
 
 
