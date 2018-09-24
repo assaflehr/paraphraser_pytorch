@@ -102,12 +102,7 @@ def train_main(opt):
             acc_loss += curr_loss
             norm_term += 1
         rec_loss = acc_loss / norm_term
-        logger.info(rec_loss)
 
-        #recon_sent0 = torch.stack(recon_sent0, dim=2) #32x2070x66 (as nll requires NxCxother_d
-        #logger.info(recon_sent0.shape)
-        #rec_loss = nllloss_for_recon(recon_sent0, recon_target)
-        #logger.info(rec_loss)
 
         ######### ADV LOSS #########  TODO : willl it be better to use completely different sentences?
         h_sty1 = models.en_sty(b.sent_1)
