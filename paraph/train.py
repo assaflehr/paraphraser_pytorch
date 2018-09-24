@@ -184,20 +184,20 @@ def train_main(opt):
 
 
     def one_epoc(epoch,bucket_iter_train,models,dont_optimize=False):
-        logger.info('one_epoc starts')
+        logger.debug('one_epoc starts')
 
 
         epoch_sim_loss, epoch_rec_loss, epoch_anti_disc_loss, epoch_sd_loss, epoch_sd_acc = 0, 0, 0, 0, 0
 
         training_batch_generator= None
-        for i in range(opt.epoch_size if not dont_optimize else opt.epoch_size/10):
+        for i in range(opt.epoch_size if not dont_optimize else int(opt.epoch_size/10)):
             # if i % 10==0 : print ('batch',i,'of',opt.epoch_size)
             logger.debug('next batch')
             b = None
             try:
                 b = next(training_batch_generator)
             except:
-                logger.info('creating new iterator')
+                logger.debug('creating new iterator')
                 training_batch_generator = iter(bucket_iter_train)  # only if no choice... it's 1.5 min
                 b = next(training_batch_generator)
 
@@ -224,10 +224,22 @@ def train_main(opt):
             epoch_anti_disc_loss += anti_disc_loss
 
             logger.setLevel(logging.INFO)
-        logger.info('[%02d] rec loss: %.4f | sim loss: %.4f | anti_disc_loss: %.4f || scene disc %.4f %.3f%% ' % (
-        epoch, epoch_rec_loss / opt.epoch_size,
+        logger.info('[%02d] %s rec loss: %.4f | sim loss: %.4f | anti_disc_loss: %.4f || scene disc %.4f %.3f%% ' % (
+        epoch, "eval" if dont_optimize else "train",epoch_rec_loss / opt.epoch_size,
         epoch_sim_loss / opt.epoch_size, epoch_anti_disc_loss / opt.epoch_size,
         epoch_sd_loss / opt.epoch_size, 100 * epoch_sd_acc / opt.epoch_size))
+
+    def set_train(models):
+        models.en_sty.train()  # and not eval() mode
+        models.en_sem.train()
+        models.decoder.train()
+        models.adv_disc.train()
+
+    def set_eval(models):
+        models.en_sty.eval()  # and not eval() mode
+        models.en_sem.eval()
+        models.decoder.eval()
+        models.adv_disc.eval()
 
 
     # --------- training loop ------------------------------------
@@ -247,14 +259,7 @@ def train_main(opt):
     if opt.optimizer == 'adam':
         optimizer = torch.optim.Adam
 
-
-
-    models.en_sty.train()  # and not eval() mode
-    models.en_sem.train()
-    models.decoder.train()
-    models.adv_disc.train()
-
-
+    set_train(models)
     epoc_count = 0
 
     opt.lr = 0.001
@@ -267,7 +272,9 @@ def train_main(opt):
 
         eval_sample(bucket_iter_train,models)
         for epoch in range(0, opt.epocs):
+            set_train(models)
             one_epoc(epoc_count,bucket_iter_train, models)
+            set_eval(models)
             one_epoc(epoc_count, bucket_iter_val,  models,dont_optimize=True)
             one_epoc(epoc_count, bucket_iter_val,  models, dont_optimize=True) #to verify nothing changged
             epoc_count += 1
