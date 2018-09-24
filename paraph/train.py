@@ -108,7 +108,7 @@ def train_main(opt):
         h_sty1 = models.en_sty(b.sent_1)
         h_styX = models.en_sty(b.sent_x)
         adv_disc_p = models.adv_disc(torch.cat([h_sty1, h_styX], dim=merge_dim))
-        # logger.debug (N(adv_disc_p[0:3].data).T)
+
         adv_target = T(torch.FloatTensor(np.full(shape=(b.sent_0[0].shape[0], 1), fill_value=0.5)))
         # the loss below is a parabula with min at log(0.5)=0.693... see documentation above
         adv_disc_loss = bce(adv_disc_p, adv_target) + np.log(0.5)  # np.log(0.5)=-0.693 ,
@@ -202,7 +202,7 @@ def train_main(opt):
 
             # train main model
             # %time train(b,epoch) #300ms
-            sim_loss, rec_loss, anti_disc_loss = train(b, models,epoch,dont_optimize)
+            sim_loss, rec_loss, anti_disc_loss = train(b, models, dont_optimize)
             logger.debug('train done')
 
             epoch_sim_loss += sim_loss
