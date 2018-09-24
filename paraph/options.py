@@ -4,12 +4,12 @@ import sys
 def get_options(from_sysargv=False):
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--epocs', type=int, default=30, help='number of epochs to train for')
-    parser.add_argument('--epoch_size', type=int, default=200, help='epoch size')
+    parser.add_argument('--epocs', type=int, default=300, help='number of epochs to train for')
+    parser.add_argument('--epoch_size', type=int, default=500, help='epoch size')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
 
-    parser.add_argument('--optimizer', default='adam', help='optimizer to train with. only Adam, AdamPre supported. Without AdamPre you must pinpoint the right learning-rate, otherwise training will not converge.')
-    parser.add_argument('--lr', default=0.0025, type=float, help='learning rate. source=0.002')
+    parser.add_argument('--optimizer', default='adam', help='optimizer to train with. only Adam supported.')
+    parser.add_argument('--lr', default=0.01, type=float, help='learning rate. 0.001 is a food value')
     parser.add_argument('--adv_disc_lr', default=0.01, type=float, help='learning rate')
 
     parser.add_argument('--beta1', default=0.5, type=float, help='momentum term for adam')

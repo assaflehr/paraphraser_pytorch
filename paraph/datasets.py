@@ -1,5 +1,6 @@
 import random
 
+import csv
 import time
 import numpy as np
 from collections import namedtuple, defaultdict
@@ -13,7 +14,7 @@ from util import revers_vocab
 
 
 # on sample of the dataset
-OneSample = namedtuple('TimeExample', ['sent_0', 'sent_1', 'sent_x', 'is_x_0', 'sent_0_target']) #'src' is out
+OneSample = namedtuple('OneSample', ['sent_0', 'sent_1', 'sent_x', 'is_x_0', 'sent_0_target']) #'src' is out
 
 
 
@@ -258,7 +259,6 @@ class BibleStyleDS(Dataset):
                          self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
 
 
-import csv
 
 
 def build_bible_datasets(verbose=False):
@@ -274,6 +274,8 @@ def build_bible_datasets(verbose=False):
             f.readline()
             for l in csv.reader(f.readlines(), quotechar='"', delimiter=',',
                                 quoting=csv.QUOTE_ALL, skipinitialspace=True):
+                # id,b,c,v,t
+                # 1001001,1,1,1,At the first God made the heaven and the earth.
                 d[l[0]] = l[4]
         return d
 
@@ -289,8 +291,6 @@ def build_bible_datasets(verbose=False):
             bibles.append((sent_wbt, sent_bbe))
     if verbose:
         print(len(bibles), bibles[0])
-    # id,b,c,v,t
-    # 1001001,1,1,1,At the first God made the heaven and the earth.
 
 
 
@@ -305,7 +305,7 @@ def build_bible_datasets(verbose=False):
     bible_style_ds_trn = BibleStyleDS([x for (i,x) in enumerate(bibles) if i%10 != 9], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
     bible_style_ds_val = BibleStyleDS([x for (i,x) in enumerate(bibles) if i%10 == 9], TEXT, TEXT_TARGET, LABEL, label_smoothing=False)
     if verbose:
-        for i in range(2):
+        for i in range(1):
             print("RAW SENTENCES", bible_style_ds_val[i])
         # print (type(bible_style_ds[i].sent_0),type(bible_style_ds[i].is_x_0),bible_style_ds[i])
 
@@ -340,7 +340,8 @@ def build_bible_datasets(verbose=False):
     bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
                                             sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
     bucket_iter_valid = data.BucketIterator(dataset=ds_val, shuffle=False, device=device, batch_size=32,
-                                            sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
+                                            sort_within_batch=False, #sort_key=lambda x: len(x.sent_0)
+                                        )
 
 
 
@@ -365,6 +366,8 @@ def build_bible_datasets(verbose=False):
 def test() :
     #ds_train, ds_eval, train_iter, eval_iter = build_time_ds()
     bucket_iter_train, bucket_iter_valid = build_bible_datasets(verbose=True)
+    print(next(iter(bucket_iter_valid)).sent_0[0])
+    print(next(iter(bucket_iter_valid)).sent_0[0])
 
 
 #test()

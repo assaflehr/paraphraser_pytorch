@@ -3,17 +3,14 @@ import numpy as np
 from util import revers_vocab,T,N
 
 
-def eval_sample(bucket_iter,models,samples=3,):
+def eval_sample(bucket_iter,models,samples=2,):
     # back to eval mode
     models.en_sem.eval()
     models.en_sty.eval()  # and not eval() mode
     models.decoder.eval()
     models.adv_disc.eval()
 
-    merge_dim=1
-
-
-    TEXT = bucket_iter.dataset.fields['sent_0']
+    #TEXT = bucket_iter.dataset.fields['sent_0']
     TEXT_TARGET = bucket_iter.dataset.fields['sent_0_target']
 
 
@@ -27,16 +24,16 @@ def eval_sample(bucket_iter,models,samples=3,):
 
 
     h_sem0 = models.en_sem(sent0)
-    h_sem1 = models.en_sem(sent1)
+    #h_sem1 = models.en_sem(sent1)
     h_semX = models.en_sem(sentX)
 
     h_sty0 = models.en_sty(sent0)
     h_sty1 = models.en_sty(sent1)
-    h_styX = models.en_sty(sentX)
+    #h_styX = models.en_sty(sentX)
 
     recon_sem0_sty0, _ ,_ = models.decoder(inputs=None,  # pass not None for teacher focring  (batch, seq_len, input_size)
                                     # encoder_hidden=T(torch.cat([h_sem1,h_sty0],dim=1)).unsqueeze(0), #(num_layers * num_directions, batch_size, hidden_size)
-                                   encoder_hidden=T(torch.cat([h_sem0 ,h_sty0] ,dim=merge_dim)).unsqueeze(0)
+                                   encoder_hidden=T(torch.cat([h_sem0 ,h_sty0] ,dim=1)).unsqueeze(0)
                                     ,  # (num_layers * num_directions, batch_size, hidden_size)
                                    encoder_outputs = None,  # pass not None for attention
                                    teacher_forcing_ratio=0  # range 0..1 , must pass inputs if >0
@@ -45,26 +42,26 @@ def eval_sample(bucket_iter,models,samples=3,):
 
     recon_semX_sty0, _ ,_ = models.decoder(inputs=None,  # pass not None for teacher focring  (batch, seq_len, input_size)
                                     # encoder_hidden=T(torch.cat([h_sem1,h_sty0],dim=1)).unsqueeze(0), #(num_layers * num_directions, batch_size, hidden_size)
-                                   encoder_hidden=T(torch.cat([h_semX ,h_sty0] ,dim=merge_dim)).unsqueeze(0)
+                                   encoder_hidden=T(torch.cat([h_semX ,h_sty0] ,dim=1)).unsqueeze(0)
                                     ,  # (num_layers * num_directions, batch_size, hidden_size)
                                    encoder_outputs = None,  # pass not None for attention
                                    teacher_forcing_ratio=0  # range 0..1 , must pass inputs if >0
                                     )
 
     recon_semX_sty1, _ ,_ = models.decoder(inputs=None,  # pass not None for teacher focring  (batch, seq_len, input_size)
-                                   encoder_hidden=T(torch.cat([h_semX ,h_sty1] ,dim=merge_dim)).unsqueeze(0),
+                                   encoder_hidden=T(torch.cat([h_semX ,h_sty1] ,dim=1)).unsqueeze(0),
                                     # (num_layers * num_directions, batch_size, hidden_size)
                                    encoder_outputs = None,  # pass not None for attention
                                    teacher_forcing_ratio=0  # range 0..1 , must pass inputs if >0
                                     )
     merge_dim=1
     recon_semX_sty1_tf1, _ ,_ = models.decoder(inputs=recon_target,  # pass not None for teacher focring  (batch, seq_len, input_size)
-                                       encoder_hidden=T(torch.cat([h_semX ,h_sty1] ,dim=merge_dim)).unsqueeze(0),
+                                       encoder_hidden=T(torch.cat([h_semX ,h_sty1] ,dim=1)).unsqueeze(0),
                                         # (num_layers * num_directions, batch_size, hidden_size)
                                        encoder_outputs = None,  # pass not None for attention
                                        teacher_forcing_ratio=1  # range 0..1 , must pass inputs if >0
                                         )
-    seperator=' '
+    seperator=''
     for i in range(samples):
         print ('\n%20s'% 'sent0:', revers_vocab(TEXT_TARGET.vocab, sent0[0][i], seperator))
         print ('%20s'% 'sent0_targ:', revers_vocab(TEXT_TARGET.vocab, recon_target[i], seperator))
