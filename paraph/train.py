@@ -41,7 +41,7 @@ def train_main(opt):
 
 
     # --------- training funtions ------------------------------------
-    def train(b, models, dont_optimize=False):
+    def train(b, models, dont_optimize):
         # x[0] semantic0   , style0
         # x[1] semantic0   , style1
         # x[2] semantic0orX, style0 (1/2 the time 0 , half X)
@@ -88,19 +88,8 @@ def train_main(opt):
         # consider length of sentences. is a short 5 word sentnece weight the same as long 40 words sentence?
         #   'elementwise_mean' means look at each word by itself. one can change this to be on sentence level
 
-
-        '''logger.info(f'recon_target {recon_target.shape}')
-        logger.info(recon_target[0])
-
-        logger.info(f'recon_sent0 {len(recon_sent0)}')
-        for step, step_output in enumerate(recon_sent0):
-            logger.info(step_output.shape)
-        recon_sent0 = torch.stack(recon_sent0, dim=1)
-        logger.info(f'recon_sent0 {recon_sent0.shape}')
-        logger.info(recon_sent0[0])
-        '''
-        # target shape [32, 26]  batch x words , actual len of 50
-
+        # we calculate it manually as sizes may not match in the returned array using seq2seq library
+        # in the end , we sum the loss per timestamp and divide by number of timestamps
         acc_loss, norm_term = 0, 0
         for step, timestamp_output in enumerate(recon_sent0):#list of 65 x [32, 2071]
             batch_size = recon_target.size(0)
@@ -218,7 +207,7 @@ def train_main(opt):
 
             # train main model
             # %time train(b,epoch) #300ms
-            sim_loss, rec_loss, anti_disc_loss = train(b, models,epoch)
+            sim_loss, rec_loss, anti_disc_loss = train(b, models,epoch,dont_optimize)
             logger.debug('train done')
 
             epoch_sim_loss += sim_loss
