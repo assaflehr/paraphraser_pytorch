@@ -128,9 +128,9 @@ def train_main(opt):
         ######### BACKWARD #########
         # full loss
         loss = rec_loss + sim_loss * opt.sem_sim_weight + opt.sd_weight * adv_disc_loss  # rec_loss + sim_loss + opt.sd_weight*adv_disc_loss
-        loss.backward()
 
         if not dont_optimize:
+            loss.backward()
             optimizer_en_sem.step()
             optimizer_en_sty.step()
             optimizer_decoder.step()
@@ -166,9 +166,10 @@ def train_main(opt):
         # logger.debug('train_scene_discriminator {out} {y}')
 
 
-        bce.backward()
+
 
         if not dont_optimize:
+            bce.backward()
             optimizer_adv_disc.step()
 
 
