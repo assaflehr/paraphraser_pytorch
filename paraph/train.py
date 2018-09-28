@@ -224,8 +224,8 @@ def train_main(opt,bucket_iter_train=None, bucket_iter_val=None,models=None):
 
 
     epoc_count = 0
-    for lr in [opt.lr, opt.lr / 10, opt.lr / 4]:  # start 0.0001 for 2 big epocs
-        print('lr', lr, opt.beta1)
+    for lr in [opt.lr]:  # start 0.0001 for 2 big epocs
+        print('training with lr', lr)
         optimizer_en_sem = optimizer(models.en_sem.parameters(), lr, betas=(opt.beta1, 0.999))
         optimizer_en_sty = optimizer(models.en_sty.parameters(), lr, betas=(opt.beta1, 0.999))
         optimizer_decoder = optimizer(models.decoder.parameters(), lr, betas=(opt.beta1, 0.999))
