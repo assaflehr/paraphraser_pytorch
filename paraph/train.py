@@ -15,10 +15,9 @@ from eval import eval_sample
 
 
 class ContrastiveLoss(torch.nn.Module):
-    # copied code from: https://gist.github.com/harveyslash/725fcc68df112980328951b3426c0e0b#file-contrastive-loss-py
     """
-    Contrastive loss function.
-    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    Contrastive loss function. Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    Note: This code was copied as-is from: https://gist.github.com/harveyslash/725fcc68df112980328951b3426c0e0b#file-contrastive-loss-py
     """
 
     def __init__(self, margin=2.0):
@@ -32,20 +31,21 @@ class ContrastiveLoss(torch.nn.Module):
                                       (label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
         return loss_contrastive
 
+# note: The train loop is a modification of https://github.com/edenton/drnet. That repository disentangles movies
+# content and style. We (heavly) change those models and loss-function to match NLP tasks instead
 
 def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None):
     if not opt :
         opt = get_options(True)
 
     contrastiveLoss = T(ContrastiveLoss())
-    nllloss_for_recon = T(torch.nn.NLLLoss(ignore_index=1)) #ignore padding
+    nllloss_for_recon = T(torch.nn.NLLLoss(ignore_index=1)) #ignores the padding characters
     bce = T(torch.nn.BCELoss())
     bce2 = T(torch.nn.BCELoss())
 
 
     # --------- training funtions ------------------------------------
     def train(b, models, dont_optimize):
-
 
         models.en_sty.zero_grad()
         models.en_sem.zero_grad()
@@ -57,14 +57,8 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
         recon_target = b.sent_0_target  # one-hot
 
         ######### SIM LOSS #########
-        # Original was MSE
-        # if you want to use torch criterion, you need to copy the label and set it to not requreing gradiant
-        # so below is different than nn.MSELoss()(h_sem0,h_sem1.detach()). I wonder if only one get grad updates!
-        # sim_loss = torch.mean(torch.sum(torch.pow(h_sem0- h_sem1,2),dim=1))
-        # But constractive loss is more reasnible
-        #############################################
+        # In practice, it does not help, and thus, usually ignored.
         sim_loss = contrastiveLoss(h_sem1, h_semX, T(torch.round(b.is_x_0)))
-
 
 
         ######### RECONSTRUCTION LOSS ######### note: quite slow
@@ -84,7 +78,6 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
         # ignore padding (it is easy to guess always <pad> as a result and to be usually right.also called masking)
         # consider length of sentences. is a short 5 word sentnece weight the same as long 40 words sentence?
         #   'elementwise_mean' means look at each word by itself. one can change this to be on sentence level
-
         # we calculate it manually as sizes may not match in the returned array using seq2seq library
         # in the end , we sum the loss per timestamp and divide by number of timestamps
         acc_loss, norm_term = 0, 0
@@ -114,10 +107,9 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
 
 
         ######### BACKWARD #########
-        # full loss
         loss = rec_loss + sim_loss * opt.sem_sim_weight + opt.sd_weight * adv_disc_loss  # rec_loss + sim_loss + opt.sd_weight*adv_disc_loss
 
-        if not dont_optimize:
+        if not dont_optimize:  # used in validation(eval mode) only
             loss.backward()
             optimizer_en_sem.step()
             optimizer_en_sty.step()
@@ -149,17 +141,18 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
         acc = acc.sum() / len(acc)
         return N(bce.data), N(acc)
 
-
+    """
+        one epoc train, runs for epoch_size batches
+    """
     def one_epoc(epoch,bucket_iter_train,models,dont_optimize):
         logger.debug('one_epoc starts')
-
 
         epoch_sim_loss, epoch_rec_loss, epoch_anti_disc_loss, epoch_sd_loss, epoch_sd_acc = 0, 0, 0, 0, 0
 
         training_batch_generator= None
         for i in range(opt.epoch_size):
-            # if i % 10==0 : print ('batch',i,'of',opt.epoch_size)
-            logger.debug('next batch')
+
+            # take next batch from current iterator. If it finished, create a new iterator
             b = None
             try:
                 b = next(training_batch_generator)
@@ -171,7 +164,6 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
             # train scene discriminator
             logger.debug(f'b_sent_0 {b.sent_0[0].shape}{b.sent_0[1].shape}')  # TEXT.reverse(b.sent_0))
 
-            # %time train_scene_discriminator(b) #50ms
             sd_loss, sd_acc = train_scene_discriminator(b,models,dont_optimize)
             logger.debug('train_scene_discriminator done')
 
@@ -179,7 +171,6 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
             epoch_sd_acc += sd_acc
 
             # train main model
-            # %time train(b,epoch) #300ms
             sim_loss, rec_loss, anti_disc_loss = train(b, models, dont_optimize)
             logger.debug('train done')
 
@@ -202,17 +193,13 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
 
 
     def set_eval(models):
-        models.en_sty.eval()  # and not eval() mode
+        models.en_sty.eval()
         models.en_sem.eval()
         models.decoder.eval()
         models.adv_disc.eval()
 
 
     # --------- training loop ------------------------------------
-
-
-
-
     logger = logging.getLogger()
     logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG, datefmt='%I:%M:%S')
     logger.setLevel(logging.INFO)  # not DEBUG
@@ -230,22 +217,21 @@ def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None
     if opt.optimizer == 'adam':
         optimizer = torch.optim.Adam
 
-
     epoc_count = 0
-    for lr in [opt.lr]:  # start 0.0001 for 2 big epocs
+    for lr in [opt.lr]:
         print('training with lr', lr)
         optimizer_en_sem = optimizer(models.en_sem.parameters(), lr, betas=(opt.beta1, 0.999))
         optimizer_en_sty = optimizer(models.en_sty.parameters(), lr, betas=(opt.beta1, 0.999))
         optimizer_decoder = optimizer(models.decoder.parameters(), lr, betas=(opt.beta1, 0.999))
-        optimizer_adv_disc = torch.optim.SGD(models.adv_disc.parameters(), opt.adv_disc_lr)
+        optimizer_adv_disc = torch.optim.SGD(models.adv_disc.parameters(), opt.adv_disc_lr) # always using SGD for discriminator
 
 
-        bucket_iter_val
         for epoch in range(0, opt.epocs):
             set_train(models)
             one_epoc(epoc_count,bucket_iter_train, models,dont_optimize=False)
 
             if epoch%10==0:
+                # validations once every 10 epocs. done by running a full epoch cylce on validation WITHOUT updating gradiants
                 set_eval(models)
                 one_epoc(epoc_count, bucket_iter_val,  models,dont_optimize=True)
                 eval_sample(bucket_iter_val, models)

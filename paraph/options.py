@@ -10,7 +10,7 @@ def get_options(from_sysargv=False):
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
 
     parser.add_argument('--optimizer', default='adam', help='optimizer to train with. only Adam supported.')
-    parser.add_argument('--lr', default=0.01, type=float, help='learning rate. 0.001 is a food value')
+    parser.add_argument('--lr', default=0.01, type=float, help='learning rate. 0.001 is a good value')
     parser.add_argument('--adv_disc_lr', default=0.01, type=float, help='learning rate')
 
     parser.add_argument('--beta1', default=0.5, type=float, help='momentum term for adam')
