@@ -22,6 +22,7 @@ def get_options(from_sysargv=False):
 
     parser.add_argument('--max_sent_len', type=int, default=30, help='max size of sentence. sentences typically will be shorter')
 
+
     if not from_sysargv:
         sys.argv=["nothing"]
         print ('using default options')

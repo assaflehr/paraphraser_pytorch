@@ -216,7 +216,7 @@ class SemStyleDS(Dataset):
                          self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
 
 
-def build_quora_dataset():
+def build_quora_dataset(verbose=False):
     # Create a dataset which is only used as internal tsv reader
     SOURCE_INT = data.Field(batch_first=True, sequential=False, use_vocab=False)  # tensor_type =torch.IntTensor)
     ds = data.TabularDataset('train.csv', format='csv', skip_header=True,
@@ -250,45 +250,48 @@ def build_quora_dataset():
                             vectors='fasttext.simple.300d')  # , max_size=80000)#,vectors='fasttext.simple.300d')  #vectors=,'fasttext.simple.300d' not-simple 'fasttext.en.300d' ,'glove.twitter.27B.50d': '
     TEXT.vocab = TEXT_TARGET.vocab  # same except from the added <sos>,<eos>
 
-    print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:30])
-    print('vocab TEXT_TARGET:', len(TEXT_TARGET.vocab), TEXT_TARGET.vocab.freqs.most_common()[:30])
+    print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:10])
+    print('vocab TEXT_TARGET:', len(TEXT_TARGET.vocab), TEXT_TARGET.vocab.freqs.most_common()[:10])
     print('vocab ', TEXT_TARGET.SYM_SOS, TEXT_TARGET.sos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_SOS])
     print('vocab ', TEXT_TARGET.SYM_EOS, TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_EOS])
     print('vocab ', 'out-of-vocab', TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi['out-of-vocab'])
 
     device = None if torch.cuda.is_available() else -1
     # READ:  https://github.com/mjc92/TorchTextTutorial/blob/master/01.%20Getting%20started.ipynb
-    bucket_iter_train = data.BucketIterator(dataset=ds_train, device=device, batch_size=32, sort_within_batch=False,
-                                            sort_key=lambda x: len(x.sent_0))
-    print('$' * 40, 'change batch_size to 32')
-    training_batch_generator = iter(bucket_iter_train)
-
-    # performance note: the first next, takes 3.5s, the next are fast (10000 is 1s)
-
-
-    for i in range(5):
-        b = next(training_batch_generator)
-        # usage
-        print('\nb.is_x_0', b.is_x_0[0], b.is_x_0.type())
-        # print ('b.src is values+len tuple',b.src[0].shape,b.src[1].shape )
-        print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0])
-        print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0],
-              revers_vocab(TEXT_TARGET.vocab, b.sent_0_target[0], ' '))
-        print('b_sent0', b.sent_0[0].shape, b.sent_0[1].shape, b.sent_0[0][0],
-              revers_vocab(TEXT.vocab, b.sent_0[0][0], ' '))
-        print('b_sent1', b.sent_1[0].shape, b.sent_1[1].shape, b.sent_1[0][0],
-              revers_vocab(TEXT.vocab, b.sent_1[0][0], ' '))
-        print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, b.sent_x[0][0],
-              revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '))
-        print('b_y', b.is_x_0.shape, b.is_x_0[0])
-
-    # addons
-
     bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
                                             sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
     bucket_iter_valid = bucket_iter_train  # data.BucketIterator(dataset=ds_val, shuffle=False, device=device, batch_size=32,
     #    sort_within_batch=False, #sort_key=lambda x: len(x.sent_0)
     # )
+
+    #bucket_iter_train = data.BucketIterator(dataset=ds_train, device=device, batch_size=32, sort_within_batch=False,
+    #                                        sort_key=lambda x: len(x.sent_0))
+    #print('$' * 40, 'change batch_size to 32')
+
+
+    # performance note: the first next, takes 3.5s, the next are fast (10000 is 1s)
+
+    if verbose:
+        training_batch_generator = iter(bucket_iter_train)
+        for i in range(5):
+            b = next(training_batch_generator)
+            # usage
+            print('\nb.is_x_0', b.is_x_0[0], b.is_x_0.type())
+            # print ('b.src is values+len tuple',b.src[0].shape,b.src[1].shape )
+            print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0])
+            print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0],
+                  revers_vocab(TEXT_TARGET.vocab, b.sent_0_target[0], ' '))
+            print('b_sent0', b.sent_0[0].shape, b.sent_0[1].shape, b.sent_0[0][0],
+                  revers_vocab(TEXT.vocab, b.sent_0[0][0], ' '))
+            print('b_sent1', b.sent_1[0].shape, b.sent_1[1].shape, b.sent_1[0][0],
+                  revers_vocab(TEXT.vocab, b.sent_1[0][0], ' '))
+            print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, b.sent_x[0][0],
+                  revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '))
+            print('b_y', b.is_x_0.shape, b.is_x_0[0])
+
+    # addons
+
+
     return bucket_iter_train, bucket_iter_valid
 
 

@@ -8,7 +8,7 @@ from torch.optim.optimizer import Optimizer
 
 from util import T,N
 from model import build_models
-from datasets import build_bible_datasets
+from datasets import build_bible_datasets,build_quora_dataset
 from options import get_options
 from eval import eval_sample
 
@@ -33,7 +33,10 @@ class ContrastiveLoss(torch.nn.Module):
         return loss_contrastive
 
 
-def train_main(opt,bucket_iter_train=None, bucket_iter_val=None,models=None):
+def train_main(opt=None,bucket_iter_train=None, bucket_iter_val=None,models=None):
+    if not opt :
+        opt = get_options(True)
+
     contrastiveLoss = T(ContrastiveLoss())
     nllloss_for_recon = T(torch.nn.NLLLoss(ignore_index=1)) #ignore padding
     bce = T(torch.nn.BCELoss())
@@ -219,7 +222,7 @@ def train_main(opt,bucket_iter_train=None, bucket_iter_val=None,models=None):
         if opt.dataset=='bible':
             bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
         elif opt.dataset=='quora':
-            bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
+            bucket_iter_train, bucket_iter_val = build_quora_dataset(verbose=False)
         else:
             raise ValueError(f'unkown dataset type {opt.dataset}')
         models = build_models(bucket_iter_train.dataset, opt)
@@ -253,5 +256,5 @@ def train_main(opt,bucket_iter_train=None, bucket_iter_val=None,models=None):
 
     return bucket_iter_train, bucket_iter_val,models
 
-
-#train_main(opt = get_options(False))
+if __name__=="__main__":
+    train_main()
