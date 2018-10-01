@@ -12,23 +12,19 @@ Installation:  (requires few custom stages so no requirements.txt is provided)
 datasets:
 There are 3 avaialbes:
 (1) toy: generated time strings in different formats
+
 (2) quora questions pairs: download from kaggle site (requires registration)
     !pip install kaggle  #then create API key in the profile and fill it below
-    !export KAGGLE_USERNAME="your-username"
-    !export KAGGLE_KEY="your-key"
-    !kaggle competitions download -c quora-question-pairs
+    import os
+    os.environ['KAGGLE_USERNAME'] = "myusername"
+    os.environ['KAGGLE_KEY'] = "mykey"
     !kaggle competitions download -c quora-question-pairs
     !unzip train.csv.zip
-    !unzip test.csv.zip
-Some stats:
-    !wc -l train.csv  #404302 train.csv
-    !wc -l test.csv   #3563490 test.csv
-example rows:
+
+example rows:  (404302 rows in total )
     "id","qid1","qid2","question1","question2","is_duplicate"
     "0","1","2","What is the step by step guide to invest in share market in india?","What is the step by step guide to invest in share market?","0"
     "1","3","4","What is the story of Kohinoor (Koh-i-Noor) Diamond?","What would happen if the Indian government stole the Kohinoor (Koh-i-Noor) diamond back?","0"
-    "2","5","6","How can I increase the speed of my internet connection while using a VPN?","How can Internet speed be increased by hacking through DNS?","0"
-    "3","7","8","Why am I mentally very lonely? How can I solve it?","Find the remainder when [math]23^{24}[/math] is divided by 24,23?","0"
 
 (3) bible versions
     !wget https://github.com/scrollmapper/bible_databases/raw/master/csv/t_bbe.csv

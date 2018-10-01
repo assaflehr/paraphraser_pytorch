@@ -72,15 +72,7 @@ class TimeStyleDataset(Dataset):
         return OneSample(sent_0, sent_1, sent_x, y, sent_0)
 
 
-def test():
-    dataset = TimeStyleDataset(1e3, 1)
-    for i in range(3):
-        sample = dataset[i];
-        print('test sample', sample)
-        # print ('len',len(dataset))
 
-
-# test()
 
 
 
@@ -148,6 +140,18 @@ def build_time_ds():
     return ds_train, ds_eval, train_iter, eval_iter
 
 
+def test():
+    dataset = TimeStyleDataset(1e3, 1)
+    for i in range(3):
+        sample = dataset[i];
+        print('test sample', sample)
+        # print ('len',len(dataset))
+
+
+# test()
+
+
+
 class SemStyleDS(Dataset):
     def __init__(self, ds, TEXT, TEXT_TARGET, LABEL, max_id=None, label_smoothing=False):
         """
@@ -210,6 +214,82 @@ class SemStyleDS(Dataset):
 
         return OneSample(self.TEXT.preprocess(sent_0), self.TEXT.preprocess(sent_1), self.TEXT.preprocess(sent_x),
                          self.LABEL.preprocess(y), self.TEXT_TARGET.preprocess(sent_0))
+
+
+def build_quora_dataset():
+    # Create a dataset which is only used as internal tsv reader
+    SOURCE_INT = data.Field(batch_first=True, sequential=False, use_vocab=False)  # tensor_type =torch.IntTensor)
+    ds = data.TabularDataset('train.csv', format='csv', skip_header=True,
+                             fields=[('id', SOURCE_INT), ('qid1', SOURCE_INT), ('qid2', SOURCE_INT),
+                                     ('question1', SOURCE_INT), ('question2', SOURCE_INT),
+                                     ('is_duplicate', SOURCE_INT)])
+
+    tokenize = 'revtok'  # lambda x: x.split(' ') # 'revtok' #
+    TEXT_TARGET = TargetField(batch_first=True, sequential=True, use_vocab=True, lower=True,
+                              init_token=TargetField.SYM_SOS,
+                              eos_token=TargetField.SYM_EOS, tokenize=tokenize)  # fix_length=30)
+    TEXT = SourceField(batch_first=True, sequential=True, use_vocab=True, lower=True,
+                       tokenize=tokenize)  # , fix_length=20)
+    LABEL = data.Field(batch_first=True, sequential=False, use_vocab=False, tensor_type=torch.FloatTensor)
+
+    sem_style_ds = SemStyleDS(ds, TEXT, TEXT_TARGET, LABEL, max_id=1000 * 1000)
+    for i in range(5):
+        print(type(sem_style_ds[i].sent_0), type(sem_style_ds[i].is_x_0), sem_style_ds[i])
+
+    ds_train = data.Dataset(sem_style_ds,
+                            fields=[('sent_0', TEXT), ('sent_1', TEXT), ('sent_x', TEXT), ('is_x_0', LABEL),
+                                    ('sent_0_target', TEXT_TARGET)])
+    # import pdb; pdb.set_trace()
+    print('printing dataset directly, before tokenizing:')
+    print('sent_0', ds_train[2].sent_0)  # not processed
+    print('is_x_0', ds_train[2].is_x_0)  # not processed
+
+    print('\nbuilding vocab:')
+
+    TEXT_TARGET.build_vocab(ds_train,
+                            vectors='fasttext.simple.300d')  # , max_size=80000)#,vectors='fasttext.simple.300d')  #vectors=,'fasttext.simple.300d' not-simple 'fasttext.en.300d' ,'glove.twitter.27B.50d': '
+    TEXT.vocab = TEXT_TARGET.vocab  # same except from the added <sos>,<eos>
+
+    print('vocab TEXT: len', len(TEXT.vocab), 'common', TEXT.vocab.freqs.most_common()[:30])
+    print('vocab TEXT_TARGET:', len(TEXT_TARGET.vocab), TEXT_TARGET.vocab.freqs.most_common()[:30])
+    print('vocab ', TEXT_TARGET.SYM_SOS, TEXT_TARGET.sos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_SOS])
+    print('vocab ', TEXT_TARGET.SYM_EOS, TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi[TEXT_TARGET.SYM_EOS])
+    print('vocab ', 'out-of-vocab', TEXT_TARGET.eos_id, TEXT_TARGET.vocab.stoi['out-of-vocab'])
+
+    device = None if torch.cuda.is_available() else -1
+    # READ:  https://github.com/mjc92/TorchTextTutorial/blob/master/01.%20Getting%20started.ipynb
+    bucket_iter_train = data.BucketIterator(dataset=ds_train, device=device, batch_size=32, sort_within_batch=False,
+                                            sort_key=lambda x: len(x.sent_0))
+    print('$' * 40, 'change batch_size to 32')
+    training_batch_generator = iter(bucket_iter_train)
+
+    # performance note: the first next, takes 3.5s, the next are fast (10000 is 1s)
+
+
+    for i in range(5):
+        b = next(training_batch_generator)
+        # usage
+        print('\nb.is_x_0', b.is_x_0[0], b.is_x_0.type())
+        # print ('b.src is values+len tuple',b.src[0].shape,b.src[1].shape )
+        print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0])
+        print('b.sent_0_target', b.sent_0_target.shape, b.sent_0_target[0],
+              revers_vocab(TEXT_TARGET.vocab, b.sent_0_target[0], ' '))
+        print('b_sent0', b.sent_0[0].shape, b.sent_0[1].shape, b.sent_0[0][0],
+              revers_vocab(TEXT.vocab, b.sent_0[0][0], ' '))
+        print('b_sent1', b.sent_1[0].shape, b.sent_1[1].shape, b.sent_1[0][0],
+              revers_vocab(TEXT.vocab, b.sent_1[0][0], ' '))
+        print('b_sentx', b.sent_x[0].shape, b.sent_x[1].shape, b.sent_x[0][0],
+              revers_vocab(TEXT.vocab, b.sent_x[0][0], ' '))
+        print('b_y', b.is_x_0.shape, b.is_x_0[0])
+
+    # addons
+
+    bucket_iter_train = data.BucketIterator(dataset=ds_train, shuffle=True, device=device, batch_size=32,
+                                            sort_within_batch=False, sort_key=lambda x: len(x.sent_0))
+    bucket_iter_valid = bucket_iter_train  # data.BucketIterator(dataset=ds_val, shuffle=False, device=device, batch_size=32,
+    #    sort_within_batch=False, #sort_key=lambda x: len(x.sent_0)
+    # )
+    return bucket_iter_train, bucket_iter_valid
 
 
 class BibleStyleDS(Dataset):

@@ -216,7 +216,12 @@ def train_main(opt,bucket_iter_train=None, bucket_iter_val=None,models=None):
 
     print ('running train with options:',opt)
     if (bucket_iter_train == None and bucket_iter_val == None and models == None):
-        bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
+        if opt.dataset=='bible':
+            bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
+        elif opt.dataset=='quora':
+            bucket_iter_train, bucket_iter_val = build_bible_datasets(verbose=False)
+        else:
+            raise ValueError(f'unkown dataset type {opt.dataset}')
         models = build_models(bucket_iter_train.dataset, opt)
 
     if opt.optimizer == 'adam':

@@ -4,6 +4,7 @@ import sys
 def get_options(from_sysargv=False):
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--dataset', default='quora', help='dataset to use. valid values are quora or bible')
     parser.add_argument('--epocs', type=int, default=300, help='number of epochs to train for')
     parser.add_argument('--epoch_size', type=int, default=500, help='epoch size')
     parser.add_argument('--batch_size', default=32, type=int, help='batch size')
